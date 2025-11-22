@@ -8,6 +8,22 @@ use clipper2c_sys::{
 
 use crate::{malloc, Centi, ClipType, FillRule, Paths, PointScaler};
 
+/// The result of a boolean operation containing both closed and open paths.
+#[derive(Debug, Clone)]
+pub struct BooleanResult<P: PointScaler = Centi> {
+    /// Closed paths from the boolean operation
+    pub closed: Paths<P>,
+    /// Open paths from the boolean operation
+    pub open: Paths<P>,
+}
+
+impl<P: PointScaler> BooleanResult<P> {
+    /// Create a new BooleanResult
+    pub fn new(closed: Paths<P>, open: Paths<P>) -> Self {
+        Self { closed, open }
+    }
+}
+
 /// The state of the Clipper struct.
 pub trait ClipperState {}
 
@@ -213,11 +229,13 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).union(FillRule::NonZero).unwrap();
+    /// let result = Clipper::new().add_subject(path).add_clip(path2).union(FillRule::NonZero).unwrap();
+    /// let closed = result.closed;
+    /// let open = result.open;
     /// ```
     ///
     /// For more details see the original [union](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/Union.htm) docs.
-    pub fn union(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
+    pub fn union(self, fill_rule: FillRule) -> Result<BooleanResult<P>, ClipperError> {
         self.boolean_operation(ClipType::Union, fill_rule)
     }
 
@@ -231,11 +249,13 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).difference(FillRule::NonZero).unwrap();
+    /// let result = Clipper::new().add_subject(path).add_clip(path2).difference(FillRule::NonZero).unwrap();
+    /// let closed = result.closed;
+    /// let open = result.open;
     /// ```
     ///
     /// For more details see the original [difference](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/Difference.htm) docs.
-    pub fn difference(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
+    pub fn difference(self, fill_rule: FillRule) -> Result<BooleanResult<P>, ClipperError> {
         self.boolean_operation(ClipType::Difference, fill_rule)
     }
 
@@ -249,11 +269,13 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).intersect(FillRule::NonZero).unwrap();
+    /// let result = Clipper::new().add_subject(path).add_clip(path2).intersect(FillRule::NonZero).unwrap();
+    /// let closed = result.closed;
+    /// let open = result.open;
     /// ```
     ///
     /// For more details see the original [intersect](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/Intersect.htm) docs.
-    pub fn intersect(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
+    pub fn intersect(self, fill_rule: FillRule) -> Result<BooleanResult<P>, ClipperError> {
         self.boolean_operation(ClipType::Intersection, fill_rule)
     }
 
@@ -267,11 +289,13 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).xor(FillRule::NonZero).unwrap();
+    /// let result = Clipper::new().add_subject(path).add_clip(path2).xor(FillRule::NonZero).unwrap();
+    /// let closed = result.closed;
+    /// let open = result.open;
     /// ```
     ///
     /// For more details see the original [xor](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/XOR.htm) docs.
-    pub fn xor(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
+    pub fn xor(self, fill_rule: FillRule) -> Result<BooleanResult<P>, ClipperError> {
         self.boolean_operation(ClipType::Xor, fill_rule)
     }
 
@@ -279,7 +303,7 @@ impl<P: PointScaler> Clipper<WithClips, P> {
         self,
         clip_type: ClipType,
         fill_rule: FillRule,
-    ) -> Result<(Paths<P>, Paths<P>), ClipperError> {
+    ) -> Result<BooleanResult<P>, ClipperError> {
         let closed_path = unsafe { Paths::<P>::new(Vec::new()).to_clipperpaths64() };
         let open_path = unsafe { Paths::<P>::new(Vec::new()).to_clipperpaths64() };
 
@@ -303,7 +327,7 @@ impl<P: PointScaler> Clipper<WithClips, P> {
             clipper_delete_paths64(closed_path);
             clipper_delete_paths64(open_path);
 
-            Ok((closed_result, open_result))
+            Ok(BooleanResult::new(closed_result, open_result))
         };
 
         drop(self);
