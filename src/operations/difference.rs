@@ -1,4 +1,4 @@
-use crate::{Clipper, ClipperError, FillRule, Paths, PointScaler};
+use crate::{BooleanResult, Clipper, ClipperError, FillRule, Paths, PointScaler};
 
 /// This function differences closed subject paths from clip paths.
 ///
@@ -10,10 +10,12 @@ use crate::{Clipper, ClipperError, FillRule, Paths, PointScaler};
 /// let path_a: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
 /// let path_b: Paths = vec![(5.0, 5.0), (8.0, 5.0), (8.0, 8.0), (5.0, 8.0)].into();
 ///
-/// let output: Vec<Vec<(f64, f64)>> = difference(path_a, path_b, FillRule::default())
-///     .expect("Failed to run boolean operation").into();
+/// let result = difference(path_a, path_b, FillRule::default())
+///     .expect("Failed to run boolean operation");
+/// let output: Vec<Vec<(f64, f64)>> = result.closed.into();
+/// let open_output: Vec<Vec<(f64, f64)>> = result.open.into();
 ///
-/// dbg!(output);
+/// dbg!(output, open_output);
 /// ```
 ///
 /// ![Image displaying the result of the difference example](https://raw.githubusercontent.com/tirithen/clipper2/main/doc-assets/difference.png)
@@ -23,7 +25,7 @@ pub fn difference<P: PointScaler>(
     subject: impl Into<Paths<P>>,
     clip: impl Into<Paths<P>>,
     fill_rule: FillRule,
-) -> Result<Paths<P>, ClipperError> {
+) -> Result<BooleanResult<P>, ClipperError> {
     Clipper::new()
         .add_subject(subject)
         .add_clip(clip)
@@ -49,9 +51,8 @@ mod test {
             (1.0, 0.0),
         ]];
 
-        let output: Vec<Vec<(f64, f64)>> = difference::<Centi>(path1, path2, FillRule::default())
-            .unwrap()
-            .into();
+        let result = difference::<Centi>(path1, path2, FillRule::default()).unwrap();
+        let output: Vec<Vec<(f64, f64)>> = result.closed.into();
         assert_eq!(output, expected_output);
     }
 }

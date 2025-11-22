@@ -1,4 +1,4 @@
-use crate::{Clipper, ClipperError, FillRule, Paths, PointScaler};
+use crate::{BooleanResult, Clipper, ClipperError, FillRule, Paths, PointScaler};
 
 /// This function joins a set of closed subject paths, with and without clip
 /// paths.
@@ -11,10 +11,12 @@ use crate::{Clipper, ClipperError, FillRule, Paths, PointScaler};
 /// let path_a = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)];
 /// let path_b = vec![(5.0, 5.0), (8.0, 5.0), (8.0, 8.0), (5.0, 8.0)];
 ///
-/// let output: Vec<Vec<(f64, f64)>> = union::<Centi>(path_a, path_b, FillRule::default())
-///     .expect("Failed to run boolean operation").into();
+/// let result = union::<Centi>(path_a, path_b, FillRule::default())
+///     .expect("Failed to run boolean operation");
+/// let output: Vec<Vec<(f64, f64)>> = result.closed.into();
+/// let open_output: Vec<Vec<(f64, f64)>> = result.open.into();
 ///
-/// dbg!(output);
+/// dbg!(output, open_output);
 /// ```
 /// ![Image displaying the result of the union example](https://raw.githubusercontent.com/tirithen/clipper2/main/doc-assets/union.png)
 ///
@@ -23,7 +25,7 @@ pub fn union<P: PointScaler>(
     subject: impl Into<Paths<P>>,
     clip: impl Into<Paths<P>>,
     fill_rule: FillRule,
-) -> Result<Paths<P>, ClipperError> {
+) -> Result<BooleanResult<P>, ClipperError> {
     Clipper::new()
         .add_subject(subject)
         .add_clip(clip)
@@ -51,9 +53,8 @@ mod test {
             (6.0, 0.2),
         ]];
 
-        let output: Vec<Vec<(f64, f64)>> = union::<Centi>(path1, path2, FillRule::default())
-            .unwrap()
-            .into();
+        let result = union::<Centi>(path1, path2, FillRule::default()).unwrap();
+        let output: Vec<Vec<(f64, f64)>> = result.closed.into();
         assert_eq!(output, expected_output);
     }
 }
