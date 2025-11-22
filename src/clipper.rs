@@ -213,11 +213,11 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let result = Clipper::new().add_subject(path).add_clip(path2).union(FillRule::NonZero);
+    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).union(FillRule::NonZero).unwrap();
     /// ```
     ///
     /// For more details see the original [union](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/Union.htm) docs.
-    pub fn union(self, fill_rule: FillRule) -> Result<Paths<P>, ClipperError> {
+    pub fn union(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
         self.boolean_operation(ClipType::Union, fill_rule)
     }
 
@@ -231,11 +231,11 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let result = Clipper::new().add_subject(path).add_clip(path2).difference(FillRule::NonZero);
+    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).difference(FillRule::NonZero).unwrap();
     /// ```
     ///
     /// For more details see the original [difference](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/Difference.htm) docs.
-    pub fn difference(self, fill_rule: FillRule) -> Result<Paths<P>, ClipperError> {
+    pub fn difference(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
         self.boolean_operation(ClipType::Difference, fill_rule)
     }
 
@@ -249,11 +249,11 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let result = Clipper::new().add_subject(path).add_clip(path2).intersect(FillRule::NonZero);
+    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).intersect(FillRule::NonZero).unwrap();
     /// ```
     ///
     /// For more details see the original [intersect](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/Intersect.htm) docs.
-    pub fn intersect(self, fill_rule: FillRule) -> Result<Paths<P>, ClipperError> {
+    pub fn intersect(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
         self.boolean_operation(ClipType::Intersection, fill_rule)
     }
 
@@ -267,11 +267,11 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     /// let path: Paths = vec![(0.2, 0.2), (6.0, 0.2), (6.0, 6.0), (0.2, 6.0)].into();
     /// let path2: Paths = vec![(1.2, 1.2), (4.0, 1.2), (1.2, 4.0)].into();
     ///
-    /// let result = Clipper::new().add_subject(path).add_clip(path2).xor(FillRule::NonZero);
+    /// let (closed, open) = Clipper::new().add_subject(path).add_clip(path2).xor(FillRule::NonZero).unwrap();
     /// ```
     ///
     /// For more details see the original [xor](https://www.angusj.com/clipper2/Docs/Units/Clipper/Functions/XOR.htm) docs.
-    pub fn xor(self, fill_rule: FillRule) -> Result<Paths<P>, ClipperError> {
+    pub fn xor(self, fill_rule: FillRule) -> Result<(Paths<P>, Paths<P>), ClipperError> {
         self.boolean_operation(ClipType::Xor, fill_rule)
     }
 
@@ -279,7 +279,7 @@ impl<P: PointScaler> Clipper<WithClips, P> {
         self,
         clip_type: ClipType,
         fill_rule: FillRule,
-    ) -> Result<Paths<P>, ClipperError> {
+    ) -> Result<(Paths<P>, Paths<P>), ClipperError> {
         let closed_path = unsafe { Paths::<P>::new(Vec::new()).to_clipperpaths64() };
         let open_path = unsafe { Paths::<P>::new(Vec::new()).to_clipperpaths64() };
 
@@ -298,11 +298,12 @@ impl<P: PointScaler> Clipper<WithClips, P> {
                 return Err(ClipperError::FailedBooleanOperation);
             }
 
-            let path = Paths::from_clipperpaths64(closed_path);
+            let closed_result = Paths::from_clipperpaths64(closed_path);
+            let open_result = Paths::from_clipperpaths64(open_path);
             clipper_delete_paths64(closed_path);
             clipper_delete_paths64(open_path);
 
-            Ok(path)
+            Ok((closed_result, open_result))
         };
 
         drop(self);
