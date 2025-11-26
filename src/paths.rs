@@ -1,3 +1,5 @@
+use std::ops;
+
 use clipper2c_sys::{
     clipper_delete_path64, clipper_delete_paths64, clipper_paths64_area, clipper_paths64_get_point,
     clipper_paths64_length, clipper_paths64_of_paths, clipper_paths64_path_length,
@@ -26,6 +28,20 @@ use crate::{
     serde(bound = "P: PointScaler")
 )]
 pub struct Paths<P: PointScaler = Centi>(Vec<Path<P>>);
+
+impl<P: PointScaler> ops::Index<usize> for Paths<P> {
+    type Output = Path<P>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<P: PointScaler> ops::IndexMut<usize> for Paths<P> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
 
 impl<P: PointScaler> Paths<P> {
     /// Create a new paths from a vector of paths.
@@ -608,5 +624,25 @@ mod test {
 
         let deserialized: Paths = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized, paths);
+    }
+
+    #[test]
+    fn test_index() {
+        let paths = Paths::<Centi>::from(vec![
+            vec![(0.0, 0.0), (1.0, 1.0)],
+            vec![(2.0, 2.0), (3.0, 3.0)]
+        ]);
+        assert_eq!(paths[0], Path::from(vec![(0.0, 0.0), (1.0, 1.0)]));
+        assert_eq!(paths[1], Path::from(vec![(2.0, 2.0), (3.0, 3.0)]));
+    }
+
+    #[test]
+    fn test_index_mut() {
+        let mut paths = Paths::<Centi>::from(vec![
+            vec![(0.0, 0.0), (1.0, 1.0)],
+            vec![(2.0, 2.0), (3.0, 3.0)]
+        ]);
+        paths[1] = Path::from(vec![(4.0, 4.0), (5.0, 5.0)]);
+        assert_eq!(paths[1], Path::from(vec![(4.0, 4.0), (5.0, 5.0)]));
     }
 }

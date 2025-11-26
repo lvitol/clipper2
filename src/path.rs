@@ -1,3 +1,5 @@
+use std::ops;
+
 use clipper2c_sys::{
     clipper_delete_path64, clipper_path64_area, clipper_path64_get_point, clipper_path64_length,
     clipper_path64_of_points, clipper_path64_simplify, clipper_path64_size, ClipperPath64,
@@ -28,6 +30,20 @@ use crate::{
 pub struct Path<P: PointScaler = Centi>(Vec<Point<P>>);
 
 impl<P: PointScaler> Eq for Path<P> {}
+
+impl<P: PointScaler> ops::Index<usize> for Path<P> {
+    type Output = Point<P>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<P: PointScaler> ops::IndexMut<usize> for Path<P> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
 
 impl<P: PointScaler> Path<P> {
     /// Create a new path from a vector of points.
@@ -646,5 +662,20 @@ mod test {
         let path = Path::<Centi>::rectangle(10.0, 5.0, 30.0, 30.0);
         let closest_point = path.closest_point(Point::new(15.0, 7.0));
         assert_eq!(closest_point, (Point::new(10.0, 5.0), 5.385164807134504));
+    }
+
+    #[test]
+    fn test_index() {
+        let path = Path::<Centi>::from(vec![(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]);
+        assert_eq!(path[0], Point::new(0.0, 0.0));
+        assert_eq!(path[1], Point::new(1.0, 1.0));
+        assert_eq!(path[2], Point::new(2.0, 2.0));
+    }
+
+    #[test]
+    fn test_index_mut() {
+        let mut path = Path::<Centi>::from(vec![(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]);
+        path[1] = Point::new(3.0, 3.0);
+        assert_eq!(path[1], Point::new(3.0, 3.0));
     }
 }
