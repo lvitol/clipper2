@@ -501,7 +501,7 @@ impl<P: PointScaler> PolyTree<P> {
     /// Get the polygon path associated with this PolyTree node.
     pub fn polygon(&self) -> Path<P> {
         unsafe {
-            let mem = malloc(clipper_polytree64_size());
+            let mem = malloc(clipper_path64_size());
             let path_ptr = clipper_polytree64_polygon(mem, self.ptr);
             let path = Path::from_clipperpath64(path_ptr);
             clipper_delete_path64(path_ptr);
@@ -517,7 +517,7 @@ impl<P: PointScaler> PolyTree<P> {
     /// Convert this PolyTree (and all its children) to Paths.
     pub fn to_paths(&self) -> Paths<P> {
         unsafe {
-            let mem = malloc(clipper_polytree64_size());
+            let mem = malloc(clipper_paths64_size());
             let paths_ptr = clipper_polytree64_to_paths(mem, self.ptr);
             let paths = Paths::from_clipperpaths64(paths_ptr);
             clipper_delete_paths64(paths_ptr);
