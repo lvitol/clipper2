@@ -4,10 +4,12 @@ use clipper2c_sys::{
     clipper_clipper64, clipper_clipper64_add_clip, clipper_clipper64_add_open_subject,
     clipper_clipper64_add_subject, clipper_clipper64_execute,
     clipper_clipper64_execute_tree_with_open, clipper_clipper64_size,
-    clipper_delete_clipper64, clipper_delete_paths64, clipper_delete_polytree64,
-    clipper_polytree64_area, clipper_polytree64_count, clipper_polytree64_get_child,
-    clipper_polytree64_is_hole, clipper_polytree64_parent, clipper_polytree64_polygon,
-    clipper_polytree64_size, clipper_polytree64_to_paths, ClipperClipper64, ClipperPolyTree64,
+    clipper_delete_clipper64, clipper_delete_path64, clipper_delete_paths64,
+    clipper_delete_polytree64, clipper_paths64, clipper_paths64_size,
+    clipper_polytree64, clipper_polytree64_area, clipper_polytree64_count,
+    clipper_polytree64_get_child, clipper_polytree64_is_hole, clipper_polytree64_parent,
+    clipper_polytree64_polygon, clipper_polytree64_size, clipper_polytree64_to_paths,
+    ClipperClipper64, ClipperPolyTree64,
 };
 
 use crate::{malloc, Centi, ClipType, FillRule, Path, Paths, PointScaler};
@@ -385,8 +387,8 @@ impl<P: PointScaler> Clipper<WithClips, P> {
             let tree_ptr = clipper_polytree64(tree_mem, std::ptr::null_mut());
             
             // Allocate memory for open paths
-            let open_path = malloc(clipper_paths64_size());
-            let open_path_ptr = clipper_paths64(open_path);
+            let open_path_mem = malloc(clipper_paths64_size());
+            let open_path_ptr = clipper_paths64(open_path_mem);
 
             let success = clipper_clipper64_execute_tree_with_open(
                 self.ptr,
@@ -405,9 +407,11 @@ impl<P: PointScaler> Clipper<WithClips, P> {
             let poly_tree = PolyTree::from_ptr(tree_ptr);
             let open_paths = Paths::from_clipperpaths64(open_path_ptr);
             
+            // Note: poly_tree will manage its own memory via Drop trait
+            // We don't need to delete open_path_ptr here because Paths::from_clipperpaths64 creates a copy
+            // and we need to clean up the original
             clipper_delete_paths64(open_path_ptr);
             
-            // Note: poly_tree will manage its own memory via Drop trait
             Ok((poly_tree, open_paths))
         }
     }
@@ -517,21 +521,6 @@ impl<P: PointScaler> Drop for PolyTree<P> {
     }
 }
 
-/// The result of a boolean operation containing both closed and open paths, and optionally a PolyTree.
-#[derive(Debug, Clone)]
-pub struct BooleanResult<P: PointScaler = Centi> {
-    /// Closed paths from the boolean operation
-    pub closed: Paths<P>,
-    /// Open paths from the boolean operation
-    pub open: Paths<P>,
-}
-
-impl<P: PointScaler> BooleanResult<P> {
-    /// Create a new BooleanResult
-    pub fn new(closed: Paths<P>, open: Paths<P>) -> Self {
-        Self { closed, open }
-    }
-}
 
 /// Errors that can occur during clipper operations.
 #[derive(Debug, thiserror::Error)]
