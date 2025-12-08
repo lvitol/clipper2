@@ -30,6 +30,22 @@ impl<P: PointScaler> BooleanResult<P> {
     }
 }
 
+/// The result of a boolean operation containing a PolyTree with hierarchy and open paths.
+#[derive(Debug)]
+pub struct BooleanTreeResult<P: PointScaler = Centi> {
+    /// PolyTree containing the closed paths with hierarchy information
+    pub tree: PolyTree<P>,
+    /// Open paths from the boolean operation
+    pub open: Paths<P>,
+}
+
+impl<P: PointScaler> BooleanTreeResult<P> {
+    /// Create a new BooleanTreeResult
+    pub fn new(tree: PolyTree<P>, open: Paths<P>) -> Self {
+        Self { tree, open }
+    }
+}
+
 /// The state of the Clipper struct.
 pub trait ClipperState {}
 
@@ -357,22 +373,22 @@ impl<P: PointScaler> Clipper<WithClips, P> {
     ///     .union_tree(FillRule::NonZero)
     ///     .unwrap();
     /// ```
-    pub fn union_tree(self, fill_rule: FillRule) -> Result<(PolyTree<P>, Paths<P>), ClipperError> {
+    pub fn union_tree(self, fill_rule: FillRule) -> Result<BooleanTreeResult<P>, ClipperError> {
         self.boolean_operation_tree(ClipType::Union, fill_rule)
     }
 
     /// Applies a difference boolean operation and returns a PolyTree with hierarchy information.
-    pub fn difference_tree(self, fill_rule: FillRule) -> Result<(PolyTree<P>, Paths<P>), ClipperError> {
+    pub fn difference_tree(self, fill_rule: FillRule) -> Result<BooleanTreeResult<P>, ClipperError> {
         self.boolean_operation_tree(ClipType::Difference, fill_rule)
     }
 
     /// Applies an intersection boolean operation and returns a PolyTree with hierarchy information.
-    pub fn intersect_tree(self, fill_rule: FillRule) -> Result<(PolyTree<P>, Paths<P>), ClipperError> {
+    pub fn intersect_tree(self, fill_rule: FillRule) -> Result<BooleanTreeResult<P>, ClipperError> {
         self.boolean_operation_tree(ClipType::Intersection, fill_rule)
     }
 
     /// Applies an xor boolean operation and returns a PolyTree with hierarchy information.
-    pub fn xor_tree(self, fill_rule: FillRule) -> Result<(PolyTree<P>, Paths<P>), ClipperError> {
+    pub fn xor_tree(self, fill_rule: FillRule) -> Result<BooleanTreeResult<P>, ClipperError> {
         self.boolean_operation_tree(ClipType::Xor, fill_rule)
     }
 
@@ -380,7 +396,7 @@ impl<P: PointScaler> Clipper<WithClips, P> {
         self,
         clip_type: ClipType,
         fill_rule: FillRule,
-    ) -> Result<(PolyTree<P>, Paths<P>), ClipperError> {
+    ) -> Result<BooleanTreeResult<P>, ClipperError> {
         unsafe {
             // Allocate memory for PolyTree
             let tree_mem = malloc(clipper_polytree64_size());
@@ -412,7 +428,7 @@ impl<P: PointScaler> Clipper<WithClips, P> {
             // and we need to clean up the original
             clipper_delete_paths64(open_path_ptr);
             
-            Ok((poly_tree, open_paths))
+            Ok(BooleanTreeResult::new(poly_tree, open_paths))
         }
     }
 }
