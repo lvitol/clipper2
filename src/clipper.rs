@@ -453,6 +453,16 @@ pub struct PolyTree<P: PointScaler = Centi> {
     _marker: PhantomData<P>,
 }
 
+impl<P: PointScaler> std::fmt::Debug for PolyTree<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PolyTree")
+            .field("child_count", &self.child_count())
+            .field("is_hole", &self.is_hole())
+            .field("area", &self.area())
+            .finish()
+    }
+}
+
 impl<P: PointScaler> PolyTree<P> {
     /// Create a PolyTree from a raw pointer. This is unsafe because the caller must ensure
     /// the pointer is valid and will be properly managed.
