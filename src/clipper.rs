@@ -5,7 +5,7 @@ use clipper2c_sys::{
     clipper_clipper64_add_subject, clipper_clipper64_execute,
     clipper_clipper64_execute_tree_with_open, clipper_clipper64_size,
     clipper_delete_clipper64, clipper_delete_path64, clipper_delete_paths64,
-    clipper_delete_polytree64, clipper_paths64, clipper_paths64_size,
+    clipper_delete_polytree64, clipper_path64_size, clipper_paths64, clipper_paths64_size,
     clipper_polytree64, clipper_polytree64_area, clipper_polytree64_count,
     clipper_polytree64_get_child, clipper_polytree64_is_hole, clipper_polytree64_parent,
     clipper_polytree64_polygon, clipper_polytree64_size, clipper_polytree64_to_paths,
