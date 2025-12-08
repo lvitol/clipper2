@@ -420,12 +420,13 @@ impl<P: PointScaler> Clipper<WithClips, P> {
                 return Err(ClipperError::FailedBooleanOperation);
             }
 
+            // Convert the raw pointer to a Rust PolyTree structure
             let poly_tree = PolyTree::from_ptr(tree_ptr);
-            let open_paths = Paths::from_clipperpaths64(open_path_ptr);
+            // Now we can delete the original PolyTree pointer since we've copied all data
+            clipper_delete_polytree64(tree_ptr);
             
-            // Note: poly_tree will manage its own memory via Drop trait
-            // We don't need to delete open_path_ptr here because Paths::from_clipperpaths64 creates a copy
-            // and we need to clean up the original
+            let open_paths = Paths::from_clipperpaths64(open_path_ptr);
+            // Clean up the open paths pointer
             clipper_delete_paths64(open_path_ptr);
             
             Ok(BooleanTreeResult::new(poly_tree, open_paths))
@@ -448,102 +449,115 @@ impl<S: ClipperState, P: PointScaler> Drop for Clipper<S, P> {
 }
 
 /// A PolyTree structure representing the result of a boolean operation with hierarchy.
+#[derive(Debug)]
 pub struct PolyTree<P: PointScaler = Centi> {
-    ptr: *mut ClipperPolyTree64,
-    _marker: PhantomData<P>,
-}
-
-impl<P: PointScaler> std::fmt::Debug for PolyTree<P> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PolyTree")
-            .field("child_count", &self.child_count())
-            .field("is_hole", &self.is_hole())
-            .field("area", &self.area())
-            .finish()
-    }
+    /// Child nodes of this PolyTree node
+    pub(crate) children: Vec<PolyTree<P>>,
+    /// Whether this node represents a hole
+    pub(crate) is_hole: bool,
+    /// The polygon path of this node
+    pub(crate) polygon: Path<P>,
 }
 
 impl<P: PointScaler> PolyTree<P> {
     /// Create a PolyTree from a raw pointer. This is unsafe because the caller must ensure
     /// the pointer is valid and will be properly managed.
-    pub unsafe fn from_ptr(ptr: *mut ClipperPolyTree64) -> Self {
+    pub(crate) unsafe fn from_ptr(ptr: *mut ClipperPolyTree64) -> Self {
+        let is_hole = clipper_polytree64_is_hole(ptr) == 1;
+        
+        // Get polygon
+        let mem = malloc(clipper_path64_size());
+        let polygon_ptr = clipper_polytree64_polygon(mem, ptr);
+        let polygon = Path::from_clipperpath64(polygon_ptr);
+        clipper_delete_path64(polygon_ptr);
+        
+        // Get children recursively
+        let count = clipper_polytree64_count(ptr);
+        let children = (0..count)
+            .map(|i| {
+                let child_ptr = clipper_polytree64_get_child(ptr, i);
+                // The C function returns a const pointer, but we need a mutable pointer for conversion
+                PolyTree::from_ptr(child_ptr as *mut ClipperPolyTree64)
+            })
+            .collect();
+        
         Self {
-            ptr,
-            _marker: PhantomData,
+            children,
+            is_hole,
+            polygon,
         }
     }
 
     /// Get the number of direct children of this PolyTree node.
     pub fn child_count(&self) -> usize {
-        unsafe { clipper_polytree64_count(self.ptr) }
+        self.children.len()
     }
 
     /// Get a child PolyTree at the given index.
-    pub fn get_child(&self, index: usize) -> Option<PolyTree<P>> {
-        if index >= self.child_count() {
-            return None;
-        }
-        let child_ptr = unsafe { clipper_polytree64_get_child(self.ptr, index) };
-        // The C function returns a const pointer, but we need a mutable pointer for our API.
-        // Since the underlying C API likely expects mutable pointers in other functions,
-        // we'll cast away const. This is safe as long as we don't mutate while other references exist.
-        Some(PolyTree {
-            ptr: child_ptr as *mut ClipperPolyTree64,
-            _marker: PhantomData,
-        })
+    pub fn get_child(&self, index: usize) -> Option<&PolyTree<P>> {
+        self.children.get(index)
+    }
+
+    /// Get a mutable reference to a child PolyTree at the given index.
+    pub fn get_child_mut(&mut self, index: usize) -> Option<&mut PolyTree<P>> {
+        self.children.get_mut(index)
     }
 
     /// Check if this PolyTree node represents a hole.
     pub fn is_hole(&self) -> bool {
-        unsafe { clipper_polytree64_is_hole(self.ptr) != 0 }
+        self.is_hole
     }
 
     /// Get the polygon path associated with this PolyTree node.
-    pub fn polygon(&self) -> Path<P> {
-        unsafe {
-            let mem = malloc(clipper_path64_size());
-            let path_ptr = clipper_polytree64_polygon(mem, self.ptr);
-            let path = Path::from_clipperpath64(path_ptr);
-            clipper_delete_path64(path_ptr);
-            path
-        }
+    pub fn polygon(&self) -> &Path<P> {
+        &self.polygon
     }
 
     /// Get the area of this PolyTree node's polygon.
     pub fn area(&self) -> f64 {
-        unsafe { clipper_polytree64_area(self.ptr) / (P::MULTIPLIER * P::MULTIPLIER) }
+        self.polygon.signed_area()
     }
 
     /// Convert this PolyTree (and all its children) to Paths.
     pub fn to_paths(&self) -> Paths<P> {
-        unsafe {
-            let mem = malloc(clipper_paths64_size());
-            let paths_ptr = clipper_polytree64_to_paths(mem, self.ptr);
-            let paths = Paths::from_clipperpaths64(paths_ptr);
-            clipper_delete_paths64(paths_ptr);
-            paths
+        let mut paths = Vec::new();
+        self.collect_paths(&mut paths);
+        Paths::new(paths)
+    }
+
+    /// Helper method to recursively collect paths
+    fn collect_paths(&self, paths: &mut Vec<Path<P>>) {
+        paths.push(self.polygon.clone());
+        for child in &self.children {
+            child.collect_paths(paths);
         }
     }
 
-    /// Get the parent of this PolyTree node, if any.
-    pub fn parent(&self) -> Option<PolyTree<P>> {
-        let parent_ptr = unsafe { clipper_polytree64_parent(self.ptr) };
-        if parent_ptr.is_null() {
-            None
-        } else {
-            Some(PolyTree {
-                ptr: parent_ptr as *mut ClipperPolyTree64,
-                _marker: PhantomData,
-            })
+    /// Get all hole paths from this node and its children.
+    pub fn get_hole_paths(&self) -> Paths<P> {
+        let mut paths = Vec::new();
+        self.collect_hole_paths(&mut paths);
+        Paths::new(paths)
+    }
+
+    /// Helper method to recursively collect hole paths
+    fn collect_hole_paths(&self, paths: &mut Vec<Path<P>>) {
+        if self.is_hole {
+            paths.push(self.polygon.clone());
+        }
+        for child in &self.children {
+            child.collect_hole_paths(paths);
         }
     }
-}
 
-impl<P: PointScaler> Drop for PolyTree<P> {
-    fn drop(&mut self) {
-        unsafe {
-            clipper_delete_polytree64(self.ptr);
-        }
+    /// Get a reference to the children of this node.
+    pub fn children(&self) -> &Vec<PolyTree<P>> {
+        &self.children
+    }
+
+    /// Get a mutable reference to the children of this node.
+    pub fn children_mut(&mut self) -> &mut Vec<PolyTree<P>> {
+        &mut self.children
     }
 }
 
